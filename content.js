@@ -10,11 +10,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "modelLoadingProgress") {
     console.log(`Model loading: ${request.progress}% - ${request.status || ''}`);
   } else if (request.action === "modelReady") {
-    console.log("Model is ready! Requesting grammar correction...");
+    console.log("Model is ready (broadcast received)! Requesting grammar correction...");
     if (!correctionAttempted) {
       requestGrammarCorrection();
     }
   }
+  return false; // Don't keep channel open
 });
 
 function requestGrammarCorrection() {
@@ -50,5 +51,23 @@ function requestGrammarCorrection() {
   );
 }
 
-// Don't send initial request - wait for modelReady message
-// The model will notify us when it's ready via the "modelReady" action
+// Check if model is already ready immediately on page load
+// This catches cases where model was already loaded before page opened
+console.log("Checking if model is ready...");
+chrome.runtime.sendMessage(
+  { action: "getModelStatus" },
+  (response) => {
+    if (chrome.runtime.lastError) {
+      console.log("Error checking model status:", chrome.runtime.lastError.message);
+    } else if (response && response.ready) {
+      console.log("Model is ready (status check)! Requesting grammar correction...");
+      if (!correctionAttempted) {
+        requestGrammarCorrection();
+      }
+    } else if (response && response.loading) {
+      console.log(`Model is loading (${response.progress}%)... Will notify when ready.`);
+    } else {
+      console.log("Model not ready yet. Will notify when ready.");
+    }
+  }
+);
