@@ -15,7 +15,7 @@ async function setupOffscreenDocument() {
 
   // Create the offscreen document
   await chrome.offscreen.createDocument({
-    url: 'offscreen.html',
+    url: 'pages/offscreen.html',
     reasons: ['DOM_SCRAPING'], // We need DOM APIs for URL.createObjectURL
     justification: 'Load and run Transformers.js model which requires DOM APIs'
   });

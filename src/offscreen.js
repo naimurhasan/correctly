@@ -1,5 +1,5 @@
 // Offscreen document - has access to DOM APIs including URL.createObjectURL
-import { pipeline, env } from './transformers.min.js';
+import { pipeline, env } from '../lib/transformers.min.js';
 
 console.log("Offscreen document loaded");
 
