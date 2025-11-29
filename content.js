@@ -90,14 +90,14 @@ function injectStyles() {
       background: #f8f9fa;
     }
     .grammar-popup-btn {
-      flex: 1;
-      padding: 8px 14px;
+      padding: 6px 10px;
       border: none;
-      border-radius: 6px;
+      border-radius: 5px;
       cursor: pointer;
       font-weight: 500;
-      font-size: 14px;
+      font-size: 12px;
       transition: background-color 0.2s;
+      white-space: nowrap;
     }
     .grammar-popup-btn-apply {
       background: #28a745;
@@ -112,6 +112,46 @@ function injectStyles() {
     }
     .grammar-popup-btn-skip:hover {
       background: #dee2e6;
+    }
+    .grammar-popup-btn-next {
+      background: #007bff;
+      color: white;
+    }
+    .grammar-popup-btn-next:hover {
+      background: #0056b3;
+    }
+    .grammar-popup-current {
+      padding: 8px 10px;
+      background: #fff3cd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    .grammar-popup-current-old {
+      color: #dc3545;
+      text-decoration: line-through;
+      margin-right: 8px;
+    }
+    .grammar-popup-current-new {
+      color: #28a745;
+      font-weight: 500;
+    }
+    .grammar-diff-word {
+      font-weight: bold;
+      text-decoration: underline;
+      background: rgba(40, 167, 69, 0.15);
+      padding: 1px 3px;
+      border-radius: 2px;
+    }
+    .grammar-popup-current-arrow {
+      color: #666;
+      margin: 0 6px;
+    }
+    .grammar-popup-counter {
+      font-size: 11px;
+      color: #666;
+      margin-left: auto;
+      margin-right: 8px;
     }
   `;
   document.head.appendChild(style);
@@ -262,27 +302,55 @@ function setBadgeState(badge, state, count = 0) {
 // ============================================
 // Grammar Check & Difference Counting
 // ============================================
-function countDifferences(original, corrected) {
-  const orig = original.trim().toLowerCase();
-  const corr = corrected.trim().toLowerCase();
 
-  // If identical, no differences
-  if (orig === corr) return 0;
+// Get word-level differences between original and corrected text
+function getWordDiffs(original, corrected) {
+  const origWords = original.trim().split(/\s+/);
+  const corrWords = corrected.trim().split(/\s+/);
+  const diffs = [];
 
-  const origWords = orig.split(/\s+/);
-  const corrWords = corr.split(/\s+/);
-
-  let diff = 0;
   const maxLen = Math.max(origWords.length, corrWords.length);
 
   for (let i = 0; i < maxLen; i++) {
-    if (origWords[i] !== corrWords[i]) {
-      diff++;
+    const origWord = origWords[i] || '';
+    const corrWord = corrWords[i] || '';
+
+    if (origWord.toLowerCase() !== corrWord.toLowerCase()) {
+      diffs.push({
+        index: i,
+        original: origWord,
+        corrected: corrWord,
+        type: !origWord ? 'add' : !corrWord ? 'remove' : 'replace'
+      });
     }
   }
 
-  // At least 1 difference if strings differ
-  return diff || 1;
+  return diffs;
+}
+
+// Apply a single word change at a specific index
+function applySingleChange(currentText, diffItem) {
+  const words = currentText.trim().split(/\s+/);
+
+  if (diffItem.type === 'add') {
+    // Insert new word at index
+    words.splice(diffItem.index, 0, diffItem.corrected);
+  } else if (diffItem.type === 'remove') {
+    // Remove word at index
+    words.splice(diffItem.index, 1);
+  } else {
+    // Replace word at index
+    if (diffItem.index < words.length) {
+      words[diffItem.index] = diffItem.corrected;
+    }
+  }
+
+  return words.join(' ');
+}
+
+function countDifferences(original, corrected) {
+  const diffs = getWordDiffs(original, corrected);
+  return diffs.length;
 }
 
 function checkGrammar(text, badge, element) {
@@ -317,11 +385,14 @@ function checkGrammar(text, badge, element) {
           setBadgeState(badge, 'success');
           correctionData.delete(element); // No corrections needed
         } else {
-          // Store correction data for popup
+          // Store correction data for popup including word diffs
+          const diffs = getWordDiffs(text, corrected);
           correctionData.set(element, {
             original: text,
             corrected: corrected,
-            count: count
+            count: count,
+            diffs: diffs,
+            currentDiffIndex: 0
           });
           setBadgeState(badge, 'errors', count);
         }
@@ -344,6 +415,27 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Highlight changed words in the corrected text
+function highlightCorrectedText(original, corrected) {
+  const origWords = original.trim().split(/\s+/);
+  const corrWords = corrected.trim().split(/\s+/);
+  const result = [];
+
+  for (let i = 0; i < corrWords.length; i++) {
+    const origWord = origWords[i] || '';
+    const corrWord = corrWords[i] || '';
+
+    if (origWord.toLowerCase() !== corrWord.toLowerCase()) {
+      // This word was changed - highlight it
+      result.push(`<span class="grammar-diff-word">${escapeHtml(corrWord)}</span>`);
+    } else {
+      result.push(escapeHtml(corrWord));
+    }
+  }
+
+  return result.join(' ');
 }
 
 function closePopup() {
@@ -372,26 +464,34 @@ function handleEscapeKey(e) {
 function createPopup(element, data) {
   closePopup(); // Close any existing popup
 
+  const currentDiff = data.diffs && data.diffs.length > 0 ? data.diffs[0] : null;
+  const hasMultipleDiffs = data.diffs && data.diffs.length > 1;
+
   const popup = document.createElement('div');
   popup.className = 'grammar-popup';
   popup.innerHTML = `
     <div class="grammar-popup-header">
       <span>Suggestion</span>
+      ${hasMultipleDiffs ? `<span class="grammar-popup-counter">1 of ${data.diffs.length}</span>` : ''}
       <span class="grammar-popup-close">&times;</span>
     </div>
     <div class="grammar-popup-content">
+      ${currentDiff ? `
+        <div class="grammar-popup-current">
+          <span class="grammar-popup-current-old">${escapeHtml(currentDiff.original || '(missing)')}</span>
+          <span class="grammar-popup-current-arrow">→</span>
+          <span class="grammar-popup-current-new">${escapeHtml(currentDiff.corrected || '(remove)')}</span>
+        </div>
+      ` : ''}
       <div class="grammar-popup-row">
-        <div class="grammar-popup-label">Original</div>
-        <div class="grammar-popup-text grammar-popup-original">${escapeHtml(data.original)}</div>
-      </div>
-      <div class="grammar-popup-row">
-        <div class="grammar-popup-label">Corrected</div>
-        <div class="grammar-popup-text grammar-popup-corrected">${escapeHtml(data.corrected)}</div>
+        <div class="grammar-popup-label">Full correction</div>
+        <div class="grammar-popup-text grammar-popup-corrected">${highlightCorrectedText(data.original, data.corrected)}</div>
       </div>
     </div>
     <div class="grammar-popup-actions">
       <button class="grammar-popup-btn grammar-popup-btn-skip">Skip</button>
-      <button class="grammar-popup-btn grammar-popup-btn-apply">Apply</button>
+      ${hasMultipleDiffs ? `<button class="grammar-popup-btn grammar-popup-btn-next">Next</button>` : ''}
+      <button class="grammar-popup-btn grammar-popup-btn-apply">Apply All</button>
     </div>
   `;
 
@@ -431,11 +531,73 @@ function createPopup(element, data) {
     closePopup();
   };
 
+  // Next button - apply one change at a time
+  const nextBtn = popup.querySelector('.grammar-popup-btn-next');
+  if (nextBtn && data.diffs && data.diffs.length > 0) {
+    nextBtn.onclick = () => {
+      applyNextChange(element, data);
+    };
+  }
+
   // Close on outside click (with slight delay to avoid immediate close)
   setTimeout(() => {
     document.addEventListener('click', handleOutsideClick);
     document.addEventListener('keydown', handleEscapeKey);
   }, 10);
+}
+
+// Apply just the first remaining change
+function applyNextChange(element, data) {
+  if (!data.diffs || data.diffs.length === 0) {
+    closePopup();
+    return;
+  }
+
+  // Get current text from the field
+  const currentText = getTextContent(element);
+  const firstDiff = data.diffs[0];
+
+  // Apply the first change
+  const newText = applySingleChange(currentText, firstDiff);
+
+  // Update the field
+  if (element.value !== undefined) {
+    element.value = newText;
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  } else if (element.isContentEditable) {
+    element.innerText = newText;
+    element.dispatchEvent(new InputEvent('input', { bubbles: true }));
+  }
+
+  // Remove the applied diff and adjust remaining indices
+  data.diffs.shift();
+
+  // Recalculate diffs based on new text vs target
+  if (data.diffs.length > 0) {
+    // Recalculate remaining diffs
+    data.diffs = getWordDiffs(newText, data.corrected);
+    data.count = data.diffs.length;
+  }
+
+  // Update badge
+  const badge = fieldBadges.get(element);
+
+  if (data.diffs.length === 0) {
+    // All changes applied
+    if (badge) setBadgeState(badge, 'success');
+    correctionData.delete(element);
+    lastCheckedText.set(element, newText);
+    closePopup();
+  } else {
+    // More changes remain - update badge count and refresh popup
+    if (badge) setBadgeState(badge, 'errors', data.diffs.length);
+    data.original = newText;
+    lastCheckedText.set(element, newText);
+
+    // Refresh popup with updated data
+    closePopup();
+    createPopup(element, data);
+  }
 }
 
 function applyCorrection(element, correctedText) {
