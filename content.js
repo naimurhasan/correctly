@@ -537,7 +537,9 @@ function createPopup(element, data) {
 
   // Event handlers
   popup.querySelector('.grammar-popup-close').onclick = closePopup;
-  popup.querySelector('.grammar-popup-btn-skip').onclick = closePopup;
+  popup.querySelector('.grammar-popup-btn-skip').onclick = () => {
+    skipCurrentChange(element, data);
+  };
   popup.querySelector('.grammar-popup-btn-apply').onclick = () => {
     applyCorrection(element, data.corrected);
     closePopup();
@@ -556,6 +558,35 @@ function createPopup(element, data) {
     document.addEventListener('click', handleOutsideClick);
     document.addEventListener('keydown', handleEscapeKey);
   }, 10);
+}
+
+// Skip the current word suggestion without applying it
+function skipCurrentChange(element, data) {
+  if (!data.diffs || data.diffs.length === 0) {
+    closePopup();
+    return;
+  }
+
+  // Remove the skipped diff (don't apply it)
+  data.diffs.shift();
+  data.count = data.diffs.length;
+
+  // Update badge
+  const badge = fieldBadges.get(element);
+
+  if (data.diffs.length === 0) {
+    // No more suggestions - show success (user skipped all)
+    if (badge) setBadgeState(badge, 'success');
+    correctionData.delete(element);
+    closePopup();
+  } else {
+    // More suggestions remain - update badge count and refresh popup
+    if (badge) setBadgeState(badge, 'errors', data.diffs.length);
+
+    // Refresh popup with next suggestion
+    closePopup();
+    createPopup(element, data);
+  }
 }
 
 // Apply just the first remaining change

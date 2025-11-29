@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Console CET Extension",
+  "name": "Correctly",
   "version": "1.0",
-  "description": "A basic Chrome extension with background service worker that prints to page console",
+  "description": "A grammar correction extension that helps you write better",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "background": {
     "service_worker": "background.js"
   },
