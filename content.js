@@ -354,17 +354,29 @@ function countDifferences(original, corrected) {
 }
 
 function checkGrammar(text, badge, element) {
+  // Check if extension context is still valid
+  if (!chrome.runtime?.id) {
+    console.log("Extension context invalidated - page reload required");
+    setBadgeState(badge, 'hidden');
+    return;
+  }
+
   setBadgeState(badge, 'loading');
   positionBadge(badge, element);
 
   chrome.runtime.sendMessage(
-    { action: "correctGrammar", text },
-    (response) => {
-      if (chrome.runtime.lastError) {
-        console.log("Grammar check error:", chrome.runtime.lastError.message);
-        setBadgeState(badge, 'hidden');
-        return;
-      }
+      { action: "correctGrammar", text },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          const errorMsg = chrome.runtime.lastError.message;
+          console.log("Grammar check error:", errorMsg);
+          // Hide badge on context invalidation
+          if (errorMsg.includes('Extension context invalidated')) {
+            console.log("Please refresh the page to use grammar checker");
+          }
+          setBadgeState(badge, 'hidden');
+          return;
+        }
 
       if (response?.error) {
         console.log("Grammar model error:", response.error);
