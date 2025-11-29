@@ -825,11 +825,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.runtime.sendMessage({ action: "getModelStatus" }, (response) => {
   if (chrome.runtime.lastError) {
     console.log("Error checking model status:", chrome.runtime.lastError.message);
+    // Try to trigger model load
+    chrome.runtime.sendMessage({ action: "loadModel" });
   } else if (response?.ready) {
     console.log("Grammar model already loaded");
     modelReady = true;
   } else if (response?.loading) {
     console.log(`Grammar model loading: ${response.progress}%`);
+  } else {
+    // Model not loaded yet, request it
+    console.log("Requesting model load...");
+    chrome.runtime.sendMessage({ action: "loadModel" });
   }
 });
 

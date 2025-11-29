@@ -1,6 +1,8 @@
 // Background service worker
 console.log("Background service worker started");
 
+let modelLoadRequested = false; // Track if model load has been requested
+
 // Create offscreen document
 async function setupOffscreenDocument() {
   // Check if offscreen document already exists
@@ -21,6 +23,20 @@ async function setupOffscreenDocument() {
   });
 
   console.log("Offscreen document created successfully");
+  
+  // Request model load only once
+  if (!modelLoadRequested) {
+    modelLoadRequested = true;
+    console.log("Requesting model load from offscreen...");
+    chrome.runtime.sendMessage({ action: "loadModel" }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.log("Error requesting model load:", chrome.runtime.lastError.message);
+        modelLoadRequested = false; // Reset on error
+      } else {
+        console.log("Model load request sent successfully");
+      }
+    });
+  }
 }
 
 // Initialize offscreen document
@@ -87,12 +103,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // Handle messages from content script (identified by sender.tab)
   if (sender.tab) {
-    if (request.action === "correctGrammar" || request.action === "getModelStatus") {
-      // Forward to offscreen document by sending a message
-      // The offscreen document will receive this and respond
+    if (request.action === "correctGrammar" || request.action === "getModelStatus" || request.action === "loadModel") {
+      // Forward to offscreen document using direct communication
       setupOffscreenDocument()
-        .then(() => {
-          // Send message to all extension contexts (offscreen will receive it)
+        .then(async () => {
+          // Get offscreen document context
+          const contexts = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT']
+          });
+          
+          if (contexts.length === 0) {
+            sendResponse({ error: "Offscreen document not found" });
+            return;
+          }
+          
+          // Send message directly to offscreen document
           chrome.runtime.sendMessage(request, (response) => {
             if (chrome.runtime.lastError) {
               console.log("Error communicating with offscreen:", chrome.runtime.lastError.message);

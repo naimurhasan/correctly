@@ -171,6 +171,5 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Start loading the model when offscreen document loads
-console.log("Starting model load...");
-loadModel();
+// Don't auto-load - wait for explicit request from background
+console.log("Offscreen document ready, waiting for load request...");
