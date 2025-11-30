@@ -8,8 +8,8 @@ env.allowLocalModels = false;
 env.allowRemoteModels = true;
 env.useBrowserCache = true;
 
-// Set the path to local WASM files
-env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL('./');
+// Set the path to local WASM files - point to lib folder
+env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL('lib/');
 
 let generator = null;
 let isModelLoading = false;
@@ -65,8 +65,6 @@ async function loadModel() {
         }
       );
 
-      isModelLoading = false;
-      loadingProgress = 100;
       console.log("Model pipeline loaded successfully in offscreen document!");
 
       // Test the model with the example text before marking as ready
@@ -76,7 +74,9 @@ async function loadModel() {
       console.log("Model output:", result);
 
       // Now mark as ready after successful test
+      isModelLoading = false;
       modelReady = true;
+      loadingProgress = 100;
       console.log("Model is fully ready!");
 
       // Notify background that model is ready

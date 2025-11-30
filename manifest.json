@@ -8,6 +8,14 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "action": {
+    "default_title": "Correctly - Grammar Checker",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
   "background": {
     "service_worker": "src/background.js"
   },
@@ -34,7 +42,7 @@
     {
       "resources": [
         "lib/transformers.min.js",
-        "ort-wasm-simd-threaded.jsep.wasm",
+        "lib/ort-wasm-simd-threaded.jsep.wasm",
         "lib/ort-wasm-simd-threaded.jsep.mjs"
       ],
       "matches": ["<all_urls>"]
