@@ -2,6 +2,7 @@
 console.log("Background service worker started");
 
 let modelLoadRequested = false; // Track if model load has been requested
+let lastBroadcastProgress = -1; // Throttle progress broadcasts
 
 // Update extension badge to show loading status
 function updateBadge(text, color = "#666666", title = "") {
@@ -32,28 +33,47 @@ async function setupOffscreenDocument() {
   });
 
   console.log("Offscreen document created successfully");
-  
-  // Request model load only once
+
+  // Request model load only once, with delay to ensure offscreen is ready
   if (!modelLoadRequested) {
     modelLoadRequested = true;
     updateBadge("...", "#FFA500", "Loading grammar model...");
+
+    // Wait a moment for offscreen document to fully initialize
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     console.log("Requesting model load from offscreen...");
-    chrome.runtime.sendMessage({ action: "loadModel" }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.log("Error requesting model load:", chrome.runtime.lastError.message);
+    sendLoadModelWithRetry(3);
+  }
+}
+
+// Retry mechanism for sending loadModel message
+function sendLoadModelWithRetry(retries) {
+  chrome.runtime.sendMessage({ action: "loadModel" }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.log("Error requesting model load:", chrome.runtime.lastError.message);
+      if (retries > 0) {
+        console.log(`Retrying in 1s... (${retries} attempts left)`);
+        setTimeout(() => sendLoadModelWithRetry(retries - 1), 1000);
+      } else {
         updateBadge("!", "#DC3545", "Failed to load model");
         modelLoadRequested = false; // Reset on error
-      } else {
-        console.log("Model load request sent successfully");
       }
-    });
-  }
+    } else {
+      console.log("Model load request sent successfully");
+    }
+  });
 }
 
 // Initialize offscreen document
 setupOffscreenDocument().catch(error => {
   console.error("Error setting up offscreen document:", error);
   updateBadge("!", "#DC3545", "Offscreen setup error");
+});
+
+// Handle extension icon click - open full page app
+chrome.action.onClicked.addListener(() => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('pages/app.html') });
 });
 
 // Listen for messages from offscreen document and content scripts
@@ -65,11 +85,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "progressUpdate") {
       // Update badge with progress percentage
       const progress = request.progress || 0;
-      if (progress < 100) {
+      if (request.status === "testing") {
+        updateBadge("...", "#9C27B0", "Testing model...");
+      } else if (progress < 100) {
         updateBadge(`${progress}%`, "#4A90E2", `Loading model: ${progress}%`);
       }
-      
-      // Broadcast progress to all tabs
+
+      // Throttle broadcasts - only send if progress changed by 5% or more (but always send "testing" status)
+      if (request.status !== "testing" && Math.abs(progress - lastBroadcastProgress) < 5 && progress < 100) {
+        return;
+      }
+      lastBroadcastProgress = progress;
+
+      // Broadcast to all tabs (web pages + extension pages)
       chrome.tabs.query({}, (tabs) => {
         tabs.forEach(tab => {
           chrome.tabs.sendMessage(tab.id, {
@@ -87,10 +115,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "modelReady") {
       // Show success badge
       updateBadge("✓", "#28A745", "Grammar model ready!");
-      
+
       console.log("Model ready message received from offscreen, broadcasting to all tabs...");
-      // Broadcast model ready to all tabs (only web pages, not extension pages)
-      chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }, (tabs) => {
+      // Broadcast model ready to all tabs (including extension pages)
+      chrome.tabs.query({}, (tabs) => {
         console.log(`Found ${tabs.length} web tabs to broadcast to`);
         if (tabs.length === 0) {
           console.log("No tabs to broadcast to. Open a web page to test the extension.");
@@ -123,8 +151,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
   }
 
-  // Handle messages from content script (identified by sender.tab)
-  if (sender.tab) {
+  // Handle messages from content script (identified by sender.tab) or extension pages (like app.html)
+  const isFromExtensionPage = sender.url && sender.url.startsWith('chrome-extension://') && !sender.url.includes('offscreen.html');
+  const isFromContentScript = !!sender.tab;
+
+  if (isFromContentScript || isFromExtensionPage) {
     if (request.action === "correctGrammar" || request.action === "getModelStatus" || request.action === "loadModel") {
       // Forward to offscreen document using direct communication
       setupOffscreenDocument()
@@ -133,12 +164,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const contexts = await chrome.runtime.getContexts({
             contextTypes: ['OFFSCREEN_DOCUMENT']
           });
-          
+
           if (contexts.length === 0) {
             sendResponse({ error: "Offscreen document not found" });
             return;
           }
-          
+
           // Send message directly to offscreen document
           chrome.runtime.sendMessage(request, (response) => {
             if (chrome.runtime.lastError) {

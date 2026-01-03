@@ -116,15 +116,15 @@ We tested Correctly against industry leaders using a comprehensive benchmark of 
 
 | Category | Grammarly | QuillBot | Correctly | Test Cases |
 |----------|:---------:|:--------:|:---------:|:----------:|
-| Basic Grammar Errors | 90% | **95%** | 90% | 20 |
+| Basic Grammar Errors | 90% | **95%** | **90%** | 20 |
 | Sentence Structure | **50%** | **50%** | 10% | 10 |
 | Prepositions & Conjunctions | **70%** | **70%** | 30% | 10 |
 | Punctuation & Capitalization | 60% | 60% | **50%** | 10 |
-| Spelling & Grammar Combined | **70%** | **70%** | 60% | 10 |
+| Spelling & Grammar Combined | **70%** | **70%** | **60%** | 10 |
 | ESL-Style Errors | **80%** | **80%** | 10% | 10 |
 | Formal vs Informal | 0% | 0% | 0% | 10 |
 | Meaning Preservation | **50%** | 30% | 30% | 10 |
-| Mixed Difficulty | 90% | **100%** | 60% | 10 |
+| Mixed Difficulty | 90% | **100%** | **60%** | 10 |
 | **Overall** | **64%** | **63%** | 40% | 100 |
 
 ### Memory Usage Comparison
