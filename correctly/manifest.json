@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Correctly",
-  "version": "1.0",
+  "version": "1.2",
   "description": "A grammar correction extension that helps you write better",
   "icons": {
     "16": "icons/icon16.png",
